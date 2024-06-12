@@ -1,0 +1,172 @@
+Import "Config.mql"
+Import "CollectionUtils.mql"
+Import "DatabaseUtils.mql"
+Import "PopupService.mql"
+Import "GatherRobot.mql"
+Import "CraftRobot.mql"
+
+/**
+ * 管理者类
+ * 
+ * 负责获取前端传入的数据，检查并判断各类情况，
+ * 获取数据库数据后安排相对应的“机器人”执行任务
+ */
+
+Function execute()
+	Dim lv = getLevel(), clv = getCraftLevel(), list(), task(), num, time
+	
+	Select Case Config.CT
+	Case 0
+		UseDict(1)
+		
+		list = DatabaseUtils.selectList("工匠配方", Array({"f":"level", "o": "<=", "l": clv}, {"f":"type", "o": "in", "l": "1,3,4"}), Null, Null)
+		
+		If UBOUND(list) + 1 = 0 Then 
+			PopupService.info("警告", "获取工匠配方失败", 200, 30, 0, 30)
+			ExitScript
+		End If
+		
+		PopupService.craft("工匠")
+		
+		num = UI.GetValue("num")
+		time = UI.GetValue("time")
+		
+		CraftRobot.execute("工匠制造", list, num["num"] + 1, time["time"])
+		
+	Case 1
+		UseDict(2)
+		
+		list = DatabaseUtils.selectList("炼金配方", Array({"f":"level", "o": "<=", "l": clv}, {"f":"type", "o": "in", "l": "1,2"}), Null, Null)
+		
+		If UBOUND(list) + 1 = 0 Then 
+			PopupService.info("警告", "获取炼金师配方失败", 200, 30, 0, 30)
+			ExitScript
+		End If
+		
+		PopupService.craft("炼金师")
+		
+		num = UI.GetValue("num")
+		time = UI.GetValue("time")
+		
+		CraftRobot.execute("炼金师制作", list, num["num"] + 1, time["time"])
+		
+	Case 2
+		UseDict(3)
+		
+		list = DatabaseUtils.selectList("料理配方", Array({"f":"level", "o": "<=", "l": clv}, {"f":"type", "o": "in", "l": "1,2,3"}), Null, Null)
+		
+		If UBOUND(list) + 1 = 0 Then 
+			PopupService.info("警告", "获取料理师配方失败", 200, 30, 0, 30)
+			ExitScript
+		End If
+		
+		PopupService.craft("料理师")
+		
+		num = UI.GetValue("num")
+		time = UI.GetValue("time")
+		
+		CraftRobot.execute("料理师制作", list, num["num"] + 1, time["time"])
+		
+	Case 3
+		UseDict(0)
+		
+		list = DatabaseUtils.selectList("材料", Array({"f":"level", "o": "<=", "l": lv}), Array({"f": "level", "o": "desc"}), Array({"f": "type"}))
+		
+		If UBOUND(list) + 1 = 0 Then 
+			PopupService.info("警告", "获取材料失败", 220, 30, 0, 30)
+			ExitScript
+		End If
+		
+		process(list)
+		
+		PopupService.gather("采集", list)
+		
+		For Each o In list
+			For Each p In o["list"]
+				Dim id = CStr(p["id"])
+				Dim kv = UI.GetValue(id)
+				If kv[id] Then 
+					task(UBound(task) + 1) = p
+				End If
+			Next
+		Next
+		
+		task = CollectionUtils.sort(task, "level", "desc")
+		
+		GatherRobot.execute(task)
+	End Select
+End Function
+
+Function getLevel()
+	If Config.LV <= 0 Or Config.LV > 100 Then 
+		PopupService.info("警告", "请正确填写角色等级并保存配置", 137, 30, 0, 30)
+		ExitScript
+	End If
+	
+	If Config.LV > 78 Then 
+		getLevel = 7
+	ElseIf Config.LV > 68 Then
+		getLevel = 6
+	ElseIf Config.LV > 58 Then
+		getLevel = 5
+	ElseIf Config.LV > 48 Then
+		getLevel = 4
+	ElseIf Config.LV > 38 Then
+		getLevel = 3
+	ElseIf Config.LV > 28 Then
+		getLevel = 2
+	Else 
+		getLevel = 1
+	End If
+End Function
+
+Function getCraftLevel()
+	If Config.CLV <= 0 Or Config.CLV > 20 Then 
+		PopupService.info("警告", "请正确填写手艺等级并保存配置", 137, 30, 0, 30)
+		ExitScript
+	End If
+	
+	getCraftLevel = Config.CLV
+End Function
+
+Function process(list)
+	For Each o In list
+		Select Case o["type"]
+		Case 1
+			o["title"] = "挖矿"
+		Case 2
+			o["title"] = "伐木"
+		Case 3
+			o["title"] = "采摘"
+		Case 4
+			o["title"] = "钓鱼"
+		Case 5
+			o["title"] = "其他"
+		Case Else
+			o["title"] = "-------------------------------"
+		End Select
+		
+		For Each p In o["list"]
+			Dim temp = ""
+			
+			Select Case p["level"]
+			Case 1
+				temp = "Ⅰ"
+			Case 2
+				temp = "Ⅱ"
+			Case 3
+				temp = "Ⅲ"
+			Case 4
+				temp = "Ⅳ"
+			Case 5
+				temp = "Ⅴ"
+			Case 6
+				temp = "Ⅵ"
+			Case 7
+				temp = "Ⅶ"
+			End Select
+			
+			p["text"] = p["name"] & "（" & temp & "）"
+		Next
+	Next
+End Function

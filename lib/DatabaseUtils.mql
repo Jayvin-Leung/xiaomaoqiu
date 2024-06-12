@@ -1,0 +1,72 @@
+Import "Cjson.lua"
+Import "CollectionUtils.mql"
+
+Dim PATH
+
+Function connect(url)
+	If IsNull(url) Or url = "" Then 
+		Exit Function
+	End If
+	
+	If Right(url, 1) = "/" Then 
+		PATH = url
+	Else 
+		PATH = url & "/"
+	End If
+End Function
+
+Function selectList(table, where, order, group)
+	Dim text = File.Read(PATH & table & ".json")
+	
+	If IsNull(text) Or text = "" Then 
+		selectList = Array()
+		Exit Function
+	End If
+	
+	Dim json = Cjson.Decode(text)
+	
+	If IsArray(json) = False Then 
+		selectList = Array()
+		Exit Function
+	End If
+	
+	Dim data = json["data"]
+	
+	If IsNull(data) Or IsArray(data) = False Or UBOUND(data) < 0 Then 
+		selectList = Array()
+		Exit Function
+	End If
+	
+	Dim list = CollectionUtils.copy(data)
+	
+	If IsNull(where) = False And IsArray(where) = True Then 
+		For Each o In where
+			list = CollectionUtils.filter(list, o["f"], o["o"], o["l"])
+		Next
+	End If
+	
+	If IsNull(order) = False And IsArray(order) = True Then 
+		For Each o In order
+			list = CollectionUtils.sort(list, o["f"], o["o"])
+		Next
+	End If
+	
+	If IsNull(group) = False And IsArray(group) = True Then 
+		For Each o In group
+			list = CollectionUtils.group(list, o["f"])
+		Next
+	End If
+	
+	selectList = list
+End Function
+
+Function selectOne(table, where)
+	Dim list = selectList(table, where, Null, Null)
+	
+	If UBOUND(list) + 1 = 0 Then 
+		selectOne = null
+		Exit Function
+	End If
+	
+	selectOne = list(0)
+End Function

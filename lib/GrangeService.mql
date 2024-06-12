@@ -1,0 +1,452 @@
+Import "Config.mql"
+Import "CommonService.mql"
+
+/**
+ * 家园操作类
+ * 
+ * 提供一系列有关家园的操作
+ */
+
+Dim PLANT_TASK = {"i": 0, "pt": Array(), "ct": 0, "f": False}
+Dim GRANGE_CONDITION = {"s": 0, "lpt": 0, "mt": 0, "c": True}
+Dim BASE_FARMLAND = Array(450, 1119, 486, 1169)
+Dim DISTANCE_Y = 559 - 388
+Dim SIZE = 6
+
+Function getPlantTask()
+	getPlantTask = PLANT_TASK["pt"]
+End Function
+
+Function setPlantTask(plantTask)
+	PLANT_TASK["pt"] = plantTask
+End Function
+
+Function getCurrentTask()
+	getCurrentTask = PLANT_TASK["ct"]
+End Function
+
+Function setCurrentTask(currentTask)
+	PLANT_TASK["ct"] = currentTask
+End Function
+
+Function isFinish()
+	isFinish = PLANT_TASK["f"]
+End Function
+
+Function setFinish(finish)
+	PLANT_TASK["f"] = finish
+End Function
+
+Function getStatus()
+	updateStatus()
+	getStatus = GRANGE_CONDITION["s"]
+End Function
+
+Function setStatus(status)
+	GRANGE_CONDITION["s"] = status
+End Function
+
+Function getLastPlantTime()
+	getLastPlantTime = GRANGE_CONDITION["lpt"]
+End Function
+
+Function setLastPlantTime(lastPlantTime)
+	GRANGE_CONDITION["lpt"] = lastPlantTime
+End Function
+
+Function getMatureTime()
+	getMatureTime = GRANGE_CONDITION["mt"]
+End Function
+
+Function setMatureTime(matureTime)
+	GRANGE_CONDITION["mt"] = matureTime
+End Function
+
+Function getCapacity()
+	getCapacity = GRANGE_CONDITION["c"]
+End Function
+
+Function setCapacity(capacity)
+	GRANGE_CONDITION["c"] = capacity
+End Function
+
+/**
+ * 获取家园作物剩余成熟时间
+ * 
+ * @return [int] time  家园作物剩余成熟时间
+ */
+Function getRemainder()
+	getRemainder = GRANGE_CONDITION["lpt"] + GRANGE_CONDITION["mt"] * 60 - Time()
+End Function
+
+/**
+ * 更新家园作物生长状态
+ * 
+ * @return [void] null
+ */
+Function updateStatus()
+	If GRANGE_CONDITION["s"] = 2 And GRANGE_CONDITION["lpt"] > 0 Then 
+		If Time() - GRANGE_CONDITION["lpt"] >= GRANGE_CONDITION["mt"] * 60 Then 
+			setStatus(3)
+		End If
+	End If
+End Function
+
+/**
+ * 种植作物
+ * 
+ * @param  [int]     crop        作物位置，从1开始
+ * @param  [int]     matureTime  对应作物的成熟时间
+ * @return [boolean] true        种植作物成功
+ *                   false       种植作物失败
+ */
+Function forcePlant(crop, matureTime)
+	TracePrint "函数forcePlant()：种植作物（增强） >>>>>>>>>>>> crop:" & crop & ", matureTime:" & matureTime
+	
+	If getStatus() = 0 Or getStatus() = 1 Then 
+		TracePrint "函数forcePlant()：未有作物种植，准备种植作物"
+		
+		If plant(crop, matureTime) = 1 Then 
+			forcePlant = True
+			Exit Function
+		End If
+	Else
+		TracePrint "函数forcePlant()：作物已种植，不需继续种植"
+	End If
+	
+	forcePlant = False
+End Function
+
+/**
+ * 种植作物具体操作
+ * 
+ * 1. 耕地空闲，直接种植作物
+ * 2. 耕地已种植作物且作物生长中，等待成熟，收获作物，种植作物
+ * 3. 耕地已种植作物且作物已成熟，收取作物，种植作物
+ * 
+ * @param  [int] crop        作物位置，从1开始
+ * @param  [int] matureTime  对应作物的成熟时间
+ * @return [int] -1          失败：返回家园失败或种植作物失败
+ *               0           失败：获取耕地状态失败
+ *               1           成功：种植作物成功
+ */
+Function plant(crop, matureTime)
+	TracePrint "函数plant()：种植作物 >>>>>>>>>>>> crop:" & crop & ", matureTime:" & matureTime
+	
+	If return() = False Then 
+		plant = -1
+		Exit Function
+	End If
+	
+	Dim farmlandStatus = getFarmlandStatus()
+	
+	If farmlandStatus = 1 Then 
+		TracePrint "函数plant()：耕地处于空闲状态，准备种植"
+		
+		Dim count = crop \ SIZE
+		Dim site = crop - count * SIZE
+		
+		For i = 1 To count
+			CommonService.clickScreen(Array(153, 1350, 194, 1384))
+			TracePrint "函数plant()：点击下一页按钮"
+			Delay Config.SPEED
+		Next
+		
+		CommonService.clickScreen(Array(45, 284 + DISTANCE_Y * (site - 1), 84, 412 + DISTANCE_Y * (site - 1)))
+		TracePrint "函数plant()：点击一键种植按钮"
+		Delay Config.SPEED * 2
+		
+		If home() Then 
+			TracePrint "函数plant()：种植作物完成"
+			
+			setStatus(2)
+			setLastPlantTime(time())
+			setMatureTime(matureTime)
+			
+			plant = 1
+			Exit Function
+		Else 
+			TracePrint "函数plant()：点击一键种植后未回到预期界面，种植作物失败"
+			
+			plant = -1
+			Exit Function
+		End If
+	ElseIf farmlandStatus = 2 Then
+		TracePrint "函数plant()：耕地处于非空闲状态，且作物正生长中，先等待成熟，再收获，最后种植"
+		
+		harvest()
+		
+		Delay Config.SPEED
+		
+		plant = plant(crop, matureTime)
+		Exit Function
+	ElseIf farmlandStatus = 3 Then
+		TracePrint "函数plant()：耕地处于非空闲状态，且作物已成熟，先收获，再种植"
+		
+		harvest()
+		
+		Delay Config.SPEED
+		
+		plant = plant(crop, matureTime)
+		Exit Function
+	Else 
+		TracePrint "函数plant()：获取耕地状态异常！！！！！"
+		
+		plant = 0
+		Exit Function
+	End If
+End Function
+
+/**
+ * 收获作物
+ * 
+ * @return [boolean] true   收获作物成功
+ *                   false  收获作物失败
+ */
+Function forceHarvest()
+	TracePrint "函数forceHarvest()：收获作物（增强） >>>>>>>>>>>>"
+	
+	If getCapacity() Then 
+		TracePrint "函数forceHarvest()：容量充足，准备收获作物"
+		
+		If harvest() = 1 Then 
+			forceHarvest = True
+			Exit Function
+		End If
+	Else
+		TracePrint "函数forceHarvest()：容量不足，不收获"
+	End If
+	
+	forceHarvest = False
+End Function
+
+/**
+ * 收获作物具体操作
+ * 
+ * 1. 耕地已种植作物且作物已成熟，直接收获作物
+ * 2. 耕地已种植作物但作物生长中，等待成熟，收获作物
+ * 3. 耕地空闲，不需收获作物
+ * 
+ * @return [int] -1  失败：返回家园失败或收获作物失败
+ *               0   失败：容量不足或耕地空闲不需收获或获取耕地状态失败
+ *               1   成功：收获作物成功
+ */
+Function harvest()
+	TracePrint "函数harvest()：收获作物 >>>>>>>>>>>>"
+	
+	If return() = False Then 
+		harvest = -1
+		Exit Function
+	End If
+	
+	Dim farmlandStatus = getFarmlandStatus()
+	
+	If farmlandStatus = 3 Then
+		TracePrint "函数harvest()：耕地处于非空闲状态，准备收获"
+		
+		Dim intX, intY
+		
+		CommonService.harvest()
+		Delay Config.SPEED * 2
+		
+		FindStr 519, 616, 544, 667, "容量", "526184-303030", 0.9, intX, intY
+		TracePrint "函数harvest()：容量？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then
+			TracePrint "函数harvest()：容量不足，无法收获作物"
+			
+			setCapacity(False)
+			
+			harvest = 0
+			Exit Function
+		End If
+		
+		If home() Then 
+			TracePrint "函数harvest()：收获作物完成"
+			
+			setStatus(1)
+			setLastPlantTime(0)
+			setMatureTime(0)
+			
+			harvest = 1
+			Exit Function
+		Else 
+			TracePrint "函数harvest()：点击一键收获后未回到预期界面，收获作物失败"
+			
+			harvest = -1
+			Exit Function
+		End If
+	ElseIf farmlandStatus = 2 Then
+		TracePrint "函数harvest()：耕地处于非空闲状态，等待收获"
+		
+		If getLastPlantTime() > 0 And getMatureTime() > 0 Then 
+			Dim remainder = getRemainder()
+			
+			TracePrint "函数harvest()：根据上一次种植时间及作物成熟时间，计算得出还需等待" & remainder & "秒，作物方可成熟"
+			
+			Delay remainder * 1000
+			
+			harvest = harvest()
+			Exit Function
+		Else 
+			TracePrint "函数harvest()：没有上一次种植时间及作物成熟时间，说明不是本次任务中所种植作物，等待2分钟后再进行收获工作"
+			
+			Delay 2 * 60 * 1000
+			
+			harvest = harvest()
+			Exit Function
+		End If
+	ElseIf farmlandStatus = 1 Then
+		TracePrint "函数harvest()：耕地处于空闲状态，不用收获"
+		
+		harvest = 0
+		Exit Function
+	Else 
+		TracePrint "函数harvest()：获取耕地状态异常！！！！！"
+		
+		harvest = 0
+		Exit Function	
+	End If
+End Function
+
+/**
+ * 获取耕地状态
+ * 
+ * 必须确保已处于家园当中
+ * 
+ * @return [int] 0  获取状态失败
+ *               1  空闲
+ *               2  生成中
+ *               3  已成熟
+ */
+Function getFarmlandStatus()
+	TracePrint "函数getFarmlandStatus()：获取耕地状态 >>>>>>>>>>>>"
+	
+	Dim status = 0
+	
+	Delay Config.SPEED * 3
+	
+	CommonService.clickScreen(BASE_FARMLAND)
+	TracePrint "函数getFarmlandStatus()：点击耕地"
+	
+	Delay Config.SPEED * 3
+	
+	If free() Then 
+		status = 1
+	ElseIf grow() Then
+		status = 2
+	ElseIf mature() Then
+		status = 3
+	End If
+	
+	getFarmlandStatus = status
+End Function
+
+Function free()
+	TracePrint "函数free()：判断耕地状态是否为空闲 >>>>>>>>>>>>"
+	
+	Dim intX, intY
+	
+//	Delay Config.SPEED
+	FindPic 286, 344, 329, 469, Config.PIC_PATH & "家园作物.png", "000000", 0, 0.9, intX, intY
+	TracePrint "函数free()：家园作物？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then
+		free = True
+		Exit Function
+	End If
+	
+	free = False
+End Function
+
+Function grow()
+	TracePrint "函数grow()：判断耕地状态是否为生长中 >>>>>>>>>>>>"
+	
+	Dim intX, intY
+	
+//	Delay Config.SPEED
+	FindPic 76, 508, 140, 570, Config.PIC_PATH & "种植中.png", "000000", 0, 0.9, intX, intY
+	TracePrint "函数grow()：种植中？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then
+		grow = True
+		Exit Function
+	End If
+	
+	grow = False
+End Function
+
+Function mature()
+	TracePrint "函数mature()：判断耕地状态是否为已成熟 >>>>>>>>>>>>"
+	
+	Dim intX, intY
+	
+//	Delay Config.SPEED
+	FindPic 121, 748, 227, 853, Config.PIC_PATH & "一键收取.png", "000000", 0, 0.9, intX, intY
+	TracePrint "函数mature()：一键收取？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then
+		mature = True
+		Exit Function
+	End If
+	
+	mature = False
+End Function
+
+/**
+ * 返回家园
+ * 
+ * @return [boolean] true   成功
+ *                   false  失败
+ */
+Function return()
+	If forceHome() = False Then 
+		CommonService.forceGrange()
+		TracePrint "函数return()：开始返回家园..."
+		Delay Config.SPEED * 3
+	End If
+	
+	For i = 0 To 4
+		If home() Then 
+			TracePrint "函数return()：已在家园中"
+			
+			return = True
+			Exit Function
+		End If
+		
+		Delay Config.SPEED * 2
+		
+		If i = 4 Then 
+			TracePrint "函数return()：返回家园失败"
+			
+			return = False
+			Exit Function
+		End If
+	Next
+End Function
+
+/**
+ * 判断是否已经在家园中
+ * 
+ * @return [boolean] true   是
+ *                   false  否
+ */
+Function forceHome()
+	TracePrint "函数forceHome()：判断人物目前是否在家园中（增强） >>>>>>>>>>>>"
+	
+	CommonService.main()
+	Delay Config.SPEED
+	
+	forceHome = home()
+End Function
+
+Function home()
+	TracePrint "函数home()：判断人物目前是否在家园中 >>>>>>>>>>>>"
+	
+	Dim intX, intY
+	
+	FindStr 800, 1316, 825, 1365, "切换", "FFFFFF-505050", 0.9, intX, intY
+	TracePrint "函数home()：切换？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then 
+		home = True
+		Exit Function
+	End If
+	
+	home = False
+End Function

@@ -1,0 +1,275 @@
+Import "Config.mql"
+Import "CollectionUtils.mql"
+Import "CommonService.mql"
+Import "GatherService.mql"
+
+/**
+ * 手艺制作类
+ * 
+ * 提供一系列手艺制作过程中的功能支持
+ */
+
+Dim EQUIPMENT_CONDITION = {"nc": True, "foc": 0, "lrt": 0}
+Dim BASE_PRODUCT = Array(420, 232, 494, 304)
+Dim DISTANCE_X = 420 - 295
+Dim DISTANCE_Y = 333 - 232
+Dim BLOCK_SIZE = 10
+
+Dim object = {"formulas": Array(), "formulaNames": Array()}
+
+/**
+ * 构造方法
+ * 
+ * @param  [Array] formulas  产物配方数组
+ * @return [viod]  null
+ */
+Function constructor(formulas)
+	object["formulas"] = formulas
+	object["formulaNames"] = getNamesByFormulas(formulas)
+End Function
+
+Function getFormulas()
+	getFormulas = object["formulas"]
+End Function
+
+Function setFormulas(formulas)
+	object["formulas"] = formulas
+End Function
+
+Function getFormulaNames()
+	getFormulaNames = object["formulaNames"]
+End Function
+
+Function setFormulaNames(formulaNames)
+	object["formulaNames"] = formulaNames
+End Function
+
+/**
+ * 根据产物配方获取产物配方名称
+ * 
+ * @param  [Array] formulas  产物配方数组
+ * @return [Array] names     产物配方名称数组
+ */
+Function getNamesByFormulas(formulas)
+	Dim names(), temp()
+	
+	For Each o In formulas
+		temp(UBOUND(temp) + 1) = Config.PIC_PATH & "配方_" & o["name"] & ".png"
+	Next
+	
+	Dim blocks = CollectionUtils.block(temp, BLOCK_SIZE)
+	
+	For Each o In blocks
+		names(UBOUND(names) + 1) = Join(o, "|")
+	Next
+	
+	getNamesByFormulas = names
+End Function
+
+/**
+ * 根据产物配方索引获取对应产物配方名称
+ * 
+ * @param  [int]    index  产物配方索引
+ * @return [String] name   对应的产物配方名称
+ */
+Function getNameByIndex(index)
+	Dim arr = Split(CStr(index / BLOCK_SIZE), ".")
+	If UBOUND(arr) = 0 Then 
+		arr(UBOUND(arr) + 1) = "0"
+	End If
+	
+	Dim names = getFormulaNames()
+	Dim nameStr = names(CInt(arr(0)))
+	Dim nameArr = Split(nameStr, "|")
+	
+	getNameByIndex = nameArr(CInt(arr(1)))
+End Function
+
+/**
+ * 获取产物配方索引
+ * 
+ * 获取索引前必须先打开对应手艺制作界面
+ * 
+ * @return [int] index  产物配方索引
+ */
+Function getFormulaIndex()
+	Dim intX, intY, index, names = getFormulaNames()
+	
+	For j = 0 To UBOUND(names)
+		index = FindPic(670, 1123, 705, 1330, names(j), "000000", 0, 0.9, intX, intY)
+		If intX > -1 And intY > -1 Then 
+			index = BLOCK_SIZE * j + index
+			TracePrint "函数getFormulaIndex()：配方索引？" & intX & "，" & intY & "，" & index
+			Exit For
+		End If
+	Next
+	
+	getFormulaIndex = index
+End Function
+
+/**
+ * 根据产物配方索引获取对应的产物配方
+ * 
+ * @param  [int]    index    产物配方索引，getFormulaIndex() 方法可获取
+ * @return [Object] formula  对应的产物配方
+ */
+Function getFormulaByIndex(index)
+	Dim formulas = getFormulas()
+	getFormulaByIndex = formulas(index)
+End Function
+
+/**
+ * 根据指定数量获取“最近制作”列表中的前x种产物配方索引
+ * 
+ * @param  [int]   num      需要制造“最近制作”列表中前几种产物的数量
+ * @return [Array] targets  目标产物配方索引对象数组，其中 target 标识是否为本次制造的目标产物，index 为对应的产物配方索引 
+ */
+Function getTargets(num)
+	Dim intX, intY, index, targets()
+	
+	CommonService.main()
+	CommonService.menu()
+	CommonService.craft()
+	
+	For i = 0 To num
+		target(i)
+		
+		Delay Config.SPEED
+		
+		index = getFormulaIndex()
+		
+		targets(Ubound(targets) + 1) = {"target": True, "index": index}
+	Next
+	
+	getTargets = targets
+End Function
+
+/**
+ * 更新目标产物配方索引对象数组
+ * 
+ * @param  [Array] targets  目标产物配方索引对象数组
+ * @param  [int]   index    本次制造的产物的产物配方索引，getFormulaIndex() 方法可获取
+ * @return [Array] targets  新目标产物配方索引对象数组
+ */
+Function updateTargets(targets, index)
+	Dim new(), isExist = {"f": False, "i": -1}
+	
+	For i = 0 To UBOUND(targets)
+		Dim o = targets(i)
+		
+		If o["index"] = index Then 
+			isExist["f"] = True
+			isExist["i"] = i
+			Exit For
+		End If
+	Next
+	
+	If isExist["f"] Then 
+		new(0) = targets(isExist["i"])
+		
+		For i = 0 To UBOUND(targets)
+			If i <> isExist["i"] Then 
+				new(UBound(new) + 1) = targets(i)
+			End If
+		Next
+	Else 
+		new(0) = {"target": False, "index": index}
+		
+		For Each o In targets
+			new(UBound(new) + 1) = o
+		Next
+	End If
+	
+	updateTargets = new
+End Function
+
+/**
+ * 点击“最近制作”列表中的某一个产物
+ * 
+ * @param  [int]  position  需点击产物在“最近制作”列表中的位置，从0开始
+ * @return [void] null
+ */
+Function target(position)
+	Dim arr = Split(CStr((position) / 5), ".")
+	If UBOUND(arr) = 0 Then 
+		arr(UBOUND(arr) + 1) = "0"
+	End If
+	
+	Dim row = CInt(arr(0)), col = CInt(arr(1)) / 2
+	
+	CommonService.clickScreen(Array(BASE_PRODUCT(0) - DISTANCE_X * row, BASE_PRODUCT(1) + DISTANCE_Y * col, BASE_PRODUCT(2) - DISTANCE_X * row, BASE_PRODUCT(3) + DISTANCE_Y * col))
+	TracePrint "函数target()：点击目标产物图标"
+End Function
+
+/**
+ * 开始制造
+ * 
+ * @param  [String]  name   本次制造的产物的名称
+ * @return [boolean] true   成功开始制造
+ *                   false  未成功开始制造
+ */
+Function produce(name)
+	Dim intX, intY, count = 0, ret = False
+	
+	While True
+		count = count + 1
+		
+		Delay 1000
+		FindPic 669, 1121, 706, 1314, name, "000000", 0, 0.9, intX, intY
+		TracePrint "函数produce()：" & name & "？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then
+			CommonService.max()
+			
+			Delay 500
+			FindStr 108, 935, 138, 949, "1", "104184-505050", 0.9, intX, intY
+			TracePrint "函数produce()：1？" & intX & "，" & intY
+			If intX > -1 And intY > -1 Then
+				Exit While
+			End If
+			
+			CommonService.produce()
+			TracePrint "函数produce()：点击制作按钮，开始工作，3秒后开始检查工作状态"
+			Delay 3000
+			
+			producing()
+			
+			ret = True
+		End If
+		
+		If count >= 8 Then 
+			TracePrint "函数produce()：已循环8次，制作所需材料应该已经用完，退出循环"
+			Exit While
+		End If
+	Wend
+	
+	produce = ret
+End Function
+
+Function producing()
+	Dim intX, intY, count = 0
+	
+	While True
+		count = count + 1
+		
+		Delay 1000
+		FindStr 344, 1020, 380, 1057, "制作中", "CEE7F7-505050", 0.9, intX, intY
+		TracePrint "函数produce()：制作中？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			TracePrint "函数produce()：制作中..."
+			count = 0
+		Else 
+			TracePrint "函数produce()：未在制作..."
+		End If
+		
+		If Config.IGNORE = False Then 
+			If EQUIPMENT_CONDITION["nc"] And (EQUIPMENT_CONDITION["foc"] < 90 * 60) And (EQUIPMENT_CONDITION["lrt"] = 0 Or (Time() - EQUIPMENT_CONDITION["lrt"] >= 30 * 60)) Then 
+				GatherService.equipment("produce", EQUIPMENT_CONDITION)
+			End If
+		End If
+		
+		If count >= 4 Then 
+			TracePrint "函数produce()：制作结束"
+			Exit While
+		End If
+	Wend
+End Function

@@ -1,0 +1,60 @@
+/**
+ * 获取指定范围内的一个随机时间
+ * 
+ * @param  [int] time1  指定时间
+ * @param  [int] time2  指定时间
+ * @return [int] -1     获取失败
+ *               time   time1到time2之间的随机时间
+ */
+Function getRandomTime(time1, time2)
+	If IsNull(time1) = True Or IsNull(time2) = True Then 
+		getRandomTime = -1
+		Exit Function
+	End If
+	
+	getRandomTime = getRandomInt(time1, time2)
+End Function
+
+/**
+ * 获取指定区域内的一个随机点
+ * 
+ * @param  [Array] area   指定区域。Array(0) = X1坐标，Array(1) = Y1坐标，Array(2) = X2坐标，Array(3) = Y2坐标
+ * @return [Array] -1     获取失败
+ *                 point  指定区域内的一个点。Array(0) = X坐标，Array(1) = Y坐标
+ */
+Function getRandomPoint(area)
+	If IsNull(area) = True Or IsArray(area) = False Then 
+		getRandomPoint = -1
+		Exit Function
+	End If
+	
+	getRandomPoint = Array(getRandomInt(area(0), area(2)), getRandomInt(area(1), area(3)))
+End Function
+
+/**
+ * 产生指定范围的随机整数，小数将四舍五入为整数
+ * 
+ * @param  [int] a       整数
+ * @param  [int] b       整数
+ * @return [int] -1      获取失败
+ *               number  a到b之间的随机整数
+ */
+Function getRandomInt(a, b)
+	If IsNull(a) = True Or IsNull(b) = True Then 
+		getRandomInt = -1
+		Exit Function
+	End If
+	
+	getRandomInt = Int(((b - a + 1) * Rnd()) + a)
+End Function
+
+/**
+ * 判断是否为整数
+ * 
+ * @param  [int]     number  需要判断的数字
+ * @return [boolean] true    是
+ *                   false   否
+ */
+Function isInteger(number)
+	isInteger = CInt(number) = number
+End Function

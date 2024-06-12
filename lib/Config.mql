@@ -1,0 +1,34 @@
+Dim PATH = GetTempDir() & "data/"
+Dim DB_PATH = PATH & "db/"
+Dim PIC_PATH = PATH & "pic/"
+
+Dim LV, CLV, CT, UE, SN, WN, IGNORE, UT, US, SPEED
+
+Function load()
+	TracePrint "∫Ø ˝load()£∫∂¡»°≈‰÷√..."
+	
+	LV = CInt(ReadUIConfig("lv"))
+	
+	CLV = CInt(ReadUIConfig("clv"))
+	
+	CT = ReadUIConfig("ct", 3)
+	
+	UE = ReadUIConfig("ue", False)
+	SN = CInt(ReadUIConfig("sn", 0))
+	WN = CInt(ReadUIConfig("wn", 0))
+	IGNORE = ReadUIConfig("ignore", False)
+	
+	UT = ReadUIConfig("ut", False)
+	
+	US = ReadUIConfig("us", True)
+	
+	SPEED = ReadUIConfig("speed", 0)
+	Select Case SPEED
+	Case 0
+		SPEED = 1000
+	Case 1
+		SPEED = 1500
+	Case 2
+		SPEED = 2000
+	End Select
+End Function

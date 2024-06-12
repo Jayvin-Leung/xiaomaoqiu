@@ -1,0 +1,41 @@
+Import "Config.mql"
+Import "DatabaseUtils.mql"
+Import "Manager.mql"
+
+Call init()
+Call run()
+
+Function init()
+	TracePrint "函数init()：初始化..."
+	
+	Config.load()
+	DatabaseUtils.connect(Config.DB_PATH)
+	
+	If Dir.Exist(Config.PATH) = 0 Then 
+		If Dir.Create(Config.PATH) Then 
+			Dir.Create(Config.DB_PATH)
+			Dir.Create(Config.PIC_PATH)
+		End If
+		
+		PutAttachment Config.PATH, "*.txt"
+		PutAttachment Config.DB_PATH, "*.json"
+		PutAttachment Config.PIC_PATH, "*.png"
+	End If
+	
+	SetDictEx 0, "Attachment:字库.txt"
+	SetDictEx 1, "Attachment:字库工匠.txt"
+	SetDictEx 2, "Attachment:字库炼金.txt"
+	SetDictEx 3, "Attachment:字库料理.txt"
+	Randomize
+	Log.Open
+End Function
+
+Function run()
+	TracePrint "函数run()：程序启动..."
+	Manager.execute()
+End Function
+
+Function kill()
+	TracePrint "函数kill()：程序停止..."
+	ExitScript
+End Function

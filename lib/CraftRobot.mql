@@ -1,0 +1,602 @@
+Import "Cjson.lua"
+Import "Config.mql"
+Import "CollectionUtils.mql"
+Import "CommonService.mql"
+Import "CraftService.mql"
+Import "GatherService.mql"
+Import "GrangeService.mql"
+
+Dim one()
+one(0) = {"max":Array(197, 1046, 218, 1086), "step1":Array(227, 1044, 292, 1107), "step2":Array(260, 1390, 360, 1498), "step3":Array(520, 1274, 720, 1407)}
+Dim two()
+two(0) = {"max":Array(197, 986, 218, 1026), "step1":Array(227, 983, 292, 1047), "step2":Array(260, 1330, 360, 1437), "step3":Array(520, 1272, 720, 1404)}
+two(1) = {"max":Array(197, 1107, 218, 1147), "step1":Array(227, 1105, 292, 1168), "step2":Array(260, 979, 360, 1086), "step3":Array(520, 998, 720, 1130)}
+Dim three()
+three(0) = {"max":Array(197, 924, 218, 964), "step1":Array(227, 922, 292, 986), "step2":Array(260, 1269, 360, 1376), "step3":Array(520, 1275, 720, 1407)}
+three(1) = {"max":Array(197, 1048, 218, 1088), "step1":Array(227, 1044, 292, 1108), "step2":Array(260, 1391, 360, 1498), "step3":Array(520, 1275, 720, 1407)}
+three(2) = {"max":Array(197, 1169, 218, 1209), "step1":Array(227, 1166, 292, 1230), "step2":Array(260, 1040, 360, 1147), "step3":Array(520, 1060, 720, 1192)}
+Dim four()
+four(0) = {"max":Array(197, 862, 218, 902), "step1":Array(227, 862, 292, 925), "step2":Array(260, 1209, 360, 1315), "step3":Array(520, 1228, 720, 1360)}
+four(1) = {"max":Array(197, 985, 218, 1025), "step1":Array(227, 983, 292, 1047), "step2":Array(260, 1331, 360, 1437), "step3":Array(520, 1275, 720, 1407)}
+four(2) = {"max":Array(197, 1107, 218, 1147), "step1":Array(227, 1104, 292, 1169), "step2":Array(260, 980, 360, 1086), "step3":Array(520, 998, 720, 1130)}
+four(3) = {"max":Array(197, 1229, 218, 1269), "step1":Array(227, 1227, 292, 1290), "step2":Array(260, 1102, 360, 1208), "step3":Array(520, 1120, 720, 1252)}
+Dim t_f = {"1": one, "2": two, "3": three, "4": four}
+
+Dim COLS()
+COLS(0) = Array(88, 224 + 101 * 0, 549, 313 + 101 * 0)
+COLS(1) = Array(88, 224 + 101 * 1, 549, 313 + 101 * 1)
+COLS(2) = Array(88, 224 + 101 * 2, 549, 313 + 101 * 2)
+COLS(3) = Array(88, 224 + 101 * 3, 549, 313 + 101 * 3)
+COLS(4) = Array(88, 224 + 101 * 4, 549, 313 + 101 * 4)
+
+/**
+ * @variable [Array] targets  需制造的产物（目标产物）数组
+ * 
+ * 数组下标为目标产物在“最近制作”列表中的位置，从0开始
+ * 
+ * [{target: true, index: 0}]
+ * @field  [boolean] target  是否为目标产物
+ * @field  [int]     index   处于配方数组中的位置，非目标产物时，index = -1
+ */
+Dim targets()
+
+/**
+ * @variable [Array] plantTasks  种植任务数组
+ * 
+ * [{index: 0, crops: Array(), curr: 0, finish: false}]
+ * @field  [int]     index   产物配方索引
+ * @field  [Array]   crops   需种植作物数组
+ * 		@field  [int] crop        作物索引，从1开始
+ * 		@field  [int] matureTime  成熟时间
+ * @field  [int]     curr    当前种植中的作物
+ * @field  [boolean] finish  任务是否已经完成
+ */
+Dim plantTasks()
+
+/**
+ * 定时器
+ * 
+ * 延迟指定运行时间后停止脚本运行
+ * 
+ * @param  [int]  time  脚本运行时间，单位/时
+ * @return [void] null
+ */
+Function timer(time)
+	Delay time * 60 * 60 * 1000
+	ExitScript
+End Function
+
+/**
+ * 主方法
+ * 
+ * 按顺序制造“最近制作”列表中前几种产物
+ * 
+ * @param  [String] craft     手艺类型：工匠、炼金师、料理师
+ * @param  [Array]  formulas  产物配方数组
+ * @param  [int]    num       目标产物的种类数量，最小为1，最大为10
+ * @param  [int]    time      脚本运行时间，单位/时
+ * @return [void]   null
+ */
+Function execute(craft, formulas, num, time)
+	If time > 0 Then 
+		Thread.Start(timer, time)
+	End If
+	
+	If num < 1 Then 
+		Exit Function
+	End If
+	
+	If num > 10 Then 
+		num = 10
+	End If
+	
+	CraftService.constructor(formulas)
+	
+	targets = CraftService.getTargets(num - 1)
+	
+	While True
+		openCraft()
+		
+		For i = UBound(targets) To 0 Step -1
+			Dim o = targets(i)
+			
+			If o["target"] And o["index"] > -1 Then 
+				CraftService.target(i)
+				
+				Delay Config.SPEED
+				
+				core(craft, formulas(o["index"]), o["index"])
+				
+				Exit For
+			End If
+			
+			If i = 0 Then 
+				Exit Function
+			End If
+		Next
+	Wend
+End Function
+
+/**
+ * 核心方法
+ * 
+ * 根据配方中列出的所需材料信息，按顺序依次处理每种材料，当全部材料满足条件后便开始制造目标产物
+ * 1. 普通采集材料，判断最大值未满则直接前往采集点采集
+ * 2. 家园作物材料，家园作物生长周期漫长，需提前种植
+ * 3. 幸运材料，限时采集点和普通采集点都有产出，仅对普通采集点进行采集
+ * 4. 精华材料，限时采集点产出，不做任何处理直接跳过
+ * 5. 手艺材料，也就是手艺制造的产物，先在配方数组中找到该产物的配方及位置，再重新调用该方法
+ * 
+ * @param  [String]  craft     手艺类型：工匠、炼金师、料理师
+ * @param  [Object]  formula   目标产物配方
+ * @param  [int]     index     目标产物配方在产物配方数组中的位置
+ * @return [boolean] true      成功制造了目标产物
+ *                   false     未开始制造目标产物
+ */
+Function core(craft, formula, index)
+	Dim mn = formula["material_num"]
+	Dim tf = t_f[CStr(mn)]
+	Dim count = 0, plantTask
+	
+	If formula["type2_num"] > 0 Then 
+		Dim crops(), temp = CollectionUtils.filter(plantTasks, "index", "=", index)
+			
+		For i = 1 To mn
+			Dim m = Cjson.Decode(formula["material_" & i])
+			
+			If m["type"] = 2 Then 
+				crops(UBound(crops) + 1) = {"crop": m["crop"], "matureTime": m["mature"]}
+			End If
+		Next
+		
+		If UBOUND(temp) + 1 > 0 Then 
+			plantTask = temp(0)
+		End If
+		
+		If IsNull(plantTask) Then 
+			plantTasks(UBOUND(plantTasks) + 1) = {"index":index, "crops":crops, "curr":0, "finish":False}
+			plantTask = plantTasks(UBOUND(plantTasks))
+		Else 
+			If plantTask["finish"] = False And (UBound(plantTask["crops"]) + 1) = 0 Then 
+				plantTask["crops"] = crops
+			End If
+		End If
+		
+		If grange_material(plantTask) Then 
+			Exit Function
+		End If
+	End If
+	
+	// 依次判各种材料数量是否满足条件，是则 count 加1，否则前往采集并进入下一次循环
+	For i = 1 To mn
+		Dim col = tf(i - 1)
+		Dim max = col["max"], step1 = col["step1"], step2 = col["step2"], step3 = col["step3"]
+		Dim material = Cjson.Decode(formula["material_" & i])
+		Dim maxNum = material["max"], maxStr = ""
+		
+		If maxNum = 300 Then 
+			maxStr = "300|300G"
+		ElseIf maxNum = 500 Then
+			maxStr = "500|500_1|500G|500G_1|500G_2"
+		ElseIf maxNum = 999 Then
+			maxStr = "999|999G"
+		End If
+		
+		// 采集材料
+		If material["type"] = 1 Then 
+			If gather_material(maxNum, maxStr, max, step1, step2, step3) Then 
+				count = count + 1
+			Else 
+				Exit For
+			End If
+			
+		// 家园材料，提前处理
+		ElseIf material["type"] = 2 Then 
+			count = count + 1
+			
+		// 幸运材料
+		ElseIf material["type"] = 3 Then 
+			If luck_material(maxNum, maxStr, max, step1, step2, step3) Then 
+				count = count + 1
+			Else 
+				Exit For
+			End If
+			
+		// 精华材料，不做处理
+		ElseIf material["type"] = 4 Then 
+			count = count + 1
+			
+		// 手艺材料，特殊处理
+		ElseIf material["type"] = 9 Then 
+			If craft_material(material["name"], craft, maxNum, maxStr, max, step1, step2, step3) Then 
+				count = count + 1
+			Else 
+				Exit For
+			End If
+		End If
+	Next
+	
+	// 全部材料的数量均达到要求，进入制造环节
+	If count = mn Then 
+		If formula["type2_num"] > 0 Then 
+			Dim remainder = GrangeService.getRemainder()
+			
+			If remainder > 0 Then 
+				TracePrint "函数core()：等待作物成熟再收获"
+				Delay remainder * 1000
+			End If
+			
+			Delay 1000
+			
+			If grange_material(plantTask) Then 
+				Exit Function
+			End If
+		End If
+		
+		If CraftService.produce(CraftService.getNameByIndex(index)) Then 
+			// 成功制造出产物后，“最近制作”列表会有所变化，所以目标产物数组也要有所更新
+			targets = CraftService.updateTargets(targets, index)
+			
+			If formula["type2_num"] > 0 Then 
+				GrangeService.setStatus(1)
+				GrangeService.setCapacity(True)
+				
+				If IsNull(plantTask) = False Then 
+					plantTask["crops"] = Array()
+					plantTask["curr"] = 0
+					plantTask["finish"] = False
+				End If
+			End If
+			
+			core = True
+			Exit Function
+		End If
+	End If
+	
+	core = False
+End Function
+
+/**
+ * 普通采集材料处理方法
+ * 
+ * @param  [int]     maxNum  材料最大数量，现有材料数量符合该数量即代表该材料已采集完毕
+ * @param  [String]  maxStr  对应 maxNum 的找字所需字符串
+ * @param  [Array]   max     “maxStr”找字区域
+ * @param  [Array]   step1   对应材料可点击区域
+ * @param  [Array]   step2   “获取途径”找字区域
+ * @param  [Array]   step3   “前往采集”找字区域
+ * @return [boolean] true    材料数量已符合制造所需
+ *                   false   材料数量未符合制造所需
+ */
+Function gather_material(maxNum, maxStr, max, step1, step2, step3)
+	Dim intX, intY, index
+	
+	index = FindStr(max(0), max(1), max(2), max(3), maxStr, "5AAA42-505050", 0.9, intX, intY)
+	TracePrint "函数gather_material()：" & maxNum & "？" & intX & "，" & intY & "，" & index
+	If intX > -1 And intY > -1 Then 
+		gather_material = True
+		Exit Function
+	Else 
+		CommonService.clickScreen(step1)
+		TracePrint "函数gather_material()：点击目标材料图标"
+		
+		Delay Config.SPEED
+		FindStr step2(0), step2(1), step2(2), step2(3), "获取途径", "94B2CE-505050", 0.9, intX, intY
+		TracePrint "函数gather_material()：获取途径？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			CommonService.clickScreen(Array(intX + 5, intY + 10, intX + 20, intY + 100))
+			TracePrint "函数gather_material()：点击获取途径按钮"
+			
+			Delay Config.SPEED
+			FindStr step3(0), step3(1), step3(2), step3(3), "前往采集", "EFFBFF-505050", 0.9, intX, intY
+			TracePrint "函数gather_material()：前往采集？" & intX & "，" & intY
+			If intX > -1 And intY > -1 Then 
+				CommonService.clickScreen(Array(intX, intY + 230, intX + 30, intY + 280))
+				TracePrint "函数gather_material()：点击前往采集按钮"
+				
+				GatherService.execute()
+			End If
+		End If
+	End If
+	
+	gather_material = False
+End Function
+
+/**
+ * 家园作物材料处理方法
+ * 
+ * 家园作物材料已提前处理，此处只需判断并更新作物状态即可，收获作物将放在其他材料都符合条件之后，开始制造目标产物之前
+ * 
+ * @param  [Object]  plantTask  作物种植任务对象
+ * @return [boolean] true       材料状态已符合制造所需（种植作物已成熟）
+ *                   false      材料状态未符合制造所需（种植作物未成熟）
+ */
+Function grange_material(plantTask)
+	If IsNull(plantTask) = False Then 
+		Dim crops = plantTask["crops"]
+		
+		Dim status = GrangeService.getStatus()
+		
+		If status = 0 Or status = 1 Then // 未种植
+			If plantTask["finish"] = False And plantTask["curr"] = 0 Then 
+				Dim crop = crops(UBound(crops))
+				
+				If GrangeService.forcePlant(crop["crop"], crop["matureTime"]) Then 
+					plantTask["curr"] = crop["crop"]
+					grange_material = True
+					Exit Function
+				End If
+			End If
+			
+		ElseIf status = 2 Then // 生长中
+			GrangeService.updateStatus()
+			
+		ElseIf status = 3 Then // 已成熟
+			If GrangeService.forceHarvest() Then 
+				Dim curr = plantTask["curr"]
+				
+				If curr > 0 Then 
+					crops = CollectionUtils.delete(crops, "crop", curr)
+					plantTask["crops"] = crops
+					plantTask["curr"] = 0
+				End If
+				
+				If UBOUND(crops) + 1 <= 0 Then 
+					plantTask["finish"] = True
+				End If
+				
+				grange_material = True
+				Exit Function
+			End If
+			
+		End If
+	End If
+	
+	grange_material = False
+End Function
+
+/**
+ * 幸运材料处理方法
+ * 
+ * 如果材料最大数量大于0，则现有材料数量要达到该数量才符合制造所需，
+ * 如果材料最大数量小于或等于0，则现有材料数量只要超过最低要求即可，
+ * 不符合条件的都将进入采集环节，并结束该方法和进入下一次循环
+ * 
+ * @param  [int]     maxNum  材料最大数量
+ * @param  [String]  maxStr  对应 maxNum 的找字所需字符串
+ * @param  [Array]   max     “maxStr”找字区域
+ * @param  [Array]   step1   对应材料可点击区域
+ * @param  [Array]   step2   “获取途径”找字区域
+ * @param  [Array]   step3   “前往采集”找字区域
+ * @return [boolean] true    材料数量已符合制造所需
+ *                   false   材料数量未符合制造所需
+ */
+Function luck_material(maxNum, maxStr, max, step1, step2, step3)
+	Dim intX, intY
+	
+	If maxNum > 0 Then 
+		FindStr max(0), max(1), max(2), max(3), maxStr, "5AAA42-505050", 0.9, intX, intY
+		TracePrint "函数luck_material()：" & maxNum & "？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			luck_material = True
+			Exit Function
+		Else 
+			luck_material_execute(step1, step2, step3)
+		End If
+	Else 
+		FindColor max(0), max(1), max(2), max(3), "1818E7", 0, 0.9, intX, intY
+		TracePrint "函数luck_material()：1818E7？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			luck_material_execute(step1, step2, step3)
+		Else 
+			luck_material = True
+			Exit Function
+		End If
+	End If
+	
+	luck_material = False
+End Function
+
+Function luck_material_execute(step1, step2, step3)
+	Dim intX, intY
+	
+	CommonService.clickScreen(step1)
+	TracePrint "函数luck_material()：点击目标材料图标"
+	
+	Delay Config.SPEED
+	FindStr step2(0), step2(1), step2(2), step2(3), "获取途径", "94B2CE-505050", 0.9, intX, intY
+	TracePrint "函数luck_material()：获取途径？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then 
+		CommonService.clickScreen(Array(intX + 5, intY + 10, intX + 20, intY + 100))
+		TracePrint "函数luck_material()：点击获取途径按钮"
+		
+		Delay Config.SPEED
+		FindStr step3(0), step3(1), step3(2), step3(3), "前往采集", "EFFBFF-505050", 0.9, intX, intY
+		TracePrint "函数luck_material()：前往采集？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			CommonService.clickScreen(Array(intX, intY + 230, intX + 30, intY + 280))
+			TracePrint "函数luck_material()：点击前往采集按钮"
+			
+			GatherService.execute_luck()
+		End If
+	End If
+End Function
+
+/**
+ * 手艺材料（即另一种手艺产物）处理方法
+ * 
+ * 一种产物所需材料包括另一种产物，另一种产物可能也是目标产物之一，则目标产物数组中的元素需要改变位置，
+ * 如果另一种产物不是目标产物之一，则目标产物数组需增加新的元素，并为该元素标记上非目标产物的标识
+ * 
+ * 手艺材料一般没有库存上限，所以没有材料最大数量，但为了保证代码的健壮性，保留两种判断条件，原理同幸运材料处理
+ * 
+ * @param  [String]  name      材料名称，用以判断是否为“药瓶”或“鸡肉”，是则需要进行特殊处理
+ * @param  [String]  craft     手艺类型：工匠、炼金师、料理师
+ * @param  [int]     maxNum    材料最大数量
+ * @param  [String]  maxStr    对应 maxNum 的找字所需字符串
+ * @param  [Array]   max       “maxStr”找字区域
+ * @param  [Array]   step1     对应材料可点击区域
+ * @param  [Array]   step2     “获取途径”找字区域
+ * @param  [Array]   step3     “前往采集”找字区域
+ * @return [boolean] true      材料数量已符合制造所需
+ *                   false     材料数量未符合制造所需
+ */
+Function craft_material(name, craft, maxNum, maxStr, max, step1, step2, step3)
+	Dim intX, intY
+	
+	If IsNull(name) = False Then 
+		If name = "药瓶" Then 
+			craft_material = craft_material_alchemy_execute(craft, max)
+			Exit Function
+		ElseIf name = "鸡肉" Then
+			craft_material = craft_material_chef_execute(max)
+			Exit Function
+		End If
+	End If
+	
+	If maxNum > 0 Then 
+		FindStr max(0), max(1), max(2), max(3), maxStr, "5AAA42-505050", 0.9, intX, intY
+		TracePrint "函数craft_material()：" & maxNum & "？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			craft_material = True
+			Exit Function
+		Else 
+			craft_material_execute(craft, name, step1, step2, step3)
+		End If
+	Else 
+		FindColor max(0), max(1), max(2), max(3), "1818E7", 0, 0.9, intX, intY
+		TracePrint "函数craft_material()：1818E7？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			craft_material_execute(craft, name, step1, step2, step3)
+		Else 
+			craft_material = True
+			Exit Function
+		End If
+	End If
+	
+	craft_material = False
+End Function
+
+Function craft_material_execute(craft, name, step1, step2, step3)
+	Dim intX, intY, index
+	
+	If craft = "料理师制作" Then 
+		Dim pic = Config.PIC_PATH & name & ".png"
+		
+		For 8
+			Delay 1000
+			FindPic 88, 224, 548, 717, pic, "000000-505050", 0, 0.8, intX, intY
+			TracePrint "函数craft_material()：" & pic & "？" & intX & "，" & intY
+			If intX > -1 And intY > -1 Then 
+				CommonService.clickScreen(Array(intX, intY, intX + 40, intY + 70))
+				TracePrint "函数craft_material()：点击目标材料图标"
+				Exit For
+			End If
+			
+			CommonService.craftRowDn()
+		Next
+		
+		Delay Config.SPEED
+		
+		index = CraftService.getFormulaIndex()
+		
+		If index > -1 Then 
+			core(craft, craftService.getFormulaByIndex(index), index)
+		End If
+	Else 
+		CommonService.clickScreen(step1)
+		TracePrint "函数craft_material()：点击目标材料图标"
+		
+		Delay Config.SPEED
+		FindStr step2(0), step2(1), step2(2), step2(3), "获取途径", "94B2CE-505050", 0.9, intX, intY
+		TracePrint "函数craft_material()：获取途径？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			CommonService.clickScreen(Array(intX + 5, intY + 10, intX + 20, intY + 100))
+			TracePrint "函数craft_material()：点击获取途径按钮"
+			
+			Delay Config.SPEED
+			FindStr step3(0), step3(1), step3(2), step3(3), craft, "EFFBFF-505050", 0.9, intX, intY
+			TracePrint "函数craft_material()：" & craft & "？" & intX & "，" & intY
+			If intX > -1 And intY > -1 Then 
+				CommonService.clickScreen(Array(intX, intY + 230, intX + 30, intY + 280))
+				TracePrint "函数craft_material()：点击" & craft & "制造按钮"
+				
+				Delay Config.SPEED * 3
+				
+				index = CraftService.getFormulaIndex()
+				
+				If index > -1 Then 
+					core(craft, craftService.getFormulaByIndex(index), index)
+				End If
+			End If
+		End If
+	End If
+End Function
+
+Function craft_material_alchemy_execute(craft, max)
+	Dim intX, intY, count = 0
+	
+	FindColor max(0), max(1), max(2), max(3), "1818E7", 0, 0.9, intX, intY
+	TracePrint "函数craft_material_alchemy_execute()：1818E7？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then 
+		While True
+			count = count + 1
+			
+			If count > 1 Then 
+				openCraft()
+			End If
+			
+			CommonService.clickScreen(Array(96, 234, 164, 305))
+			TracePrint "函数craft_material_alchemy_execute()：点击药瓶图标"
+			
+			Delay Config.SPEED
+			
+			If core(craft, craftService.getFormulaByIndex(0), 0) Then 
+				Exit While
+			End If
+			
+			If count >= 20 Then 
+				Exit While
+			End If
+		Wend
+	Else 
+		craft_material_alchemy_execute = True
+		Exit Function
+	End If
+	
+	craft_material_alchemy_execute = False
+End Function
+
+Function craft_material_chef_execute(max)
+	Dim intX, intY, count = 0
+	
+	FindColor max(0), max(1), max(2), max(3), "1818E7", 0, 0.9, intX, intY
+	TracePrint "函数craft_material_chef_execute()：1818E7？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then 
+		TracePrint "函数craft_material_chef_execute()：【鸡肉】已消耗完，停止脚本"
+		ExitScript
+	Else 
+		craft_material_chef_execute = True
+		Exit Function
+	End If
+	
+	craft_material_chef_execute = False
+End Function
+
+/**
+ * 打开“手艺界面”
+ * 
+ * 首先判断当前界面是否为“主界面”，否，则会一直返回至“主界面”
+ * 接着判断人物当前是否处于“家园”场景中，是则不需要移动，否则需要先移动一下人物
+ * 最后依次切换至“菜单”，打开“手艺界面”
+ * 
+ * @return [void] null
+ */
+Function openCraft()
+	CommonService.main()
+	If GrangeService.home() = False Then 
+		CommonService.move()
+	End If
+	CommonService.menu()
+	CommonService.craft()
+End Function

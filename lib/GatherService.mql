@@ -1,0 +1,330 @@
+Import "Config.mql"
+Import "CommonService.mql"
+
+/**
+ * 材料采集类
+ * 
+ * 提供一系列采集库存中材料的功能支持
+ */
+
+Dim NEED_CHECK = True
+Dim FIND_OUT_COUNT = 0
+Dim LAST_REPLACE_TIME = 0
+Dim EQUIPMENT_CONDITION = {"nc": True, "foc": 0, "lrt": 0}
+Dim BASE_EQUIPMENT = Array(646, 823, 744, 917)
+Dim DISTANCE_X = 121
+Dim DISTANCE_Y = 111
+Dim LAST_SKILL_TIME = 0
+Dim LAST_TOOL_TIME = 0
+
+/**
+ * 普通材料采集方法
+ * 
+ * 普通材料，可直接前往普通采集点进行采集
+ * 
+ * @return [int] 0  未成功进行采集
+ *               1  成功进行采集
+ */
+Function execute()
+	Dim ret = 0, intX, intY, index
+	Dim pic = Config.PIC_PATH & "自动寻路.png|" & Config.PIC_PATH & "自动寻路1.png|" & Config.PIC_PATH & "自动寻路2.png"
+	
+	Delay Config.SPEED * 2
+	index = FindPic(87, 1260, 657, 1353, pic, "505050", 0, 0.9, intX, intY)
+	TracePrint "函数execute()：自动寻路？" & intX & "，" & intY & "，" & index
+	If intX > -1 And intY > -1 Then 
+		CommonService.clickScreen(Array(intX + 30, intY + 20, intX + 50, intY + 50))
+		TracePrint "函数execute()：点击自动寻路按钮"
+		
+		ret = gather()
+	End If
+	
+	execute = ret
+End Function
+
+/**
+ * 幸运材料采集方法
+ * 
+ * 幸运材料，自动推荐前往限时采集点进行采集，需要往下滑动，找到并前往对应的普通采集点进行采集
+ * 
+ * @return [void] null
+ */
+Function execute_luck()
+	Dim intX, intY, cols = Array(Array(93, 965, 664, 988), Array(93, 1047, 664, 1070))
+	
+	Delay Config.SPEED * 2
+	
+	CommonService.swipeScreen(Array(98, 1303, 111, 1329), Array(767, 1313, 783, 1331), 1000, 1000)
+	TracePrint "函数execute_luck()：向下翻页"
+	Delay CommonService.getPauseTime()
+	
+	For i = 0 To UBOUND(cols)
+		Dim col = cols(i)
+		
+		FindStr col(0), col(1), col(2), col(3), "需求", "10309C-505050", 0.8, intX, intY
+		TracePrint "函数execute_luck()：需求？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			If intX - 95 < 150 Then 
+				CommonService.swipeScreen(Array(98, 1303, 111, 1329), Array(250, 1303, 260, 1329), 1000, 1000)
+				TracePrint "函数execute_luck()：向下翻行"
+				Delay CommonService.getPauseTime()
+				
+				FindStr col(0), col(1), col(2), col(3), "需求", "10309C-505050", 0.8, intX, intY
+				TracePrint "函数execute_luck()：需求？" & intX & "，" & intY
+			End If
+			
+			CommonService.clickScreen(Array(intX - 64, intY + 330 - (i * 82), intX - 34, intY + 370 - (i * 82)))
+			TracePrint "函数execute_luck()：点击自动寻路按钮"
+			
+			gather()
+			
+			Exit For
+		End If
+	Next
+End Function
+
+/**
+ * 开始采集
+ * 
+ * @return [int] 0  未成功进行采集
+ *               1  成功进行采集
+ */
+Function gather()
+	Dim ret = 0, intX, intY, count = 0, stay = 0
+	
+	While True
+		count = count + 1
+		
+		Delay 1000
+		FindStr 466, 993, 489, 1040, "挖矿|伐木|采摘|钓鱼", "EFFFFF", 0.9, intX, intY
+		TracePrint "函数gather()：挖矿|伐木|采摘|钓鱼？" & intX & "，" & intY & "，持续出现" & stay & "秒"
+		If intX > -1 And intY > -1 Then 
+			stay = stay + 1
+			
+			// 交互按钮需持续出现3秒才可以点击，否则容易因为自动寻路途中路中其他采集点而误点了交互按钮
+			If stay > 3 Then 
+				CommonService.interaction()
+				TracePrint "函数gather()：点击交互按钮，开始工作，3秒后开始检查工作状态"
+				Delay 3000
+				
+				ret = gathering()
+				
+				Exit While
+			End If
+		Else 
+			stay = 0
+		End If
+		
+		If count >= 60 Then 
+			TracePrint "函数gather()：已循环60次，可能是1分钟未跑到采集点，或点击交互按钮失败，退出循环"
+			Exit While
+		End If
+	Wend
+	
+	gather = ret
+End Function
+
+Function gathering()
+	Dim ret = 0, intX, intY, count = 0
+	
+	While True
+		count = count + 1
+		
+		Delay 1000
+		FindStr 352, 747, 374, 812, "挖矿中|伐木中|采摘中|钓鱼中", "FFFFFF", 0.9, intX, intY
+		TracePrint "函数gathering()：挖矿中|伐木中|采摘中|钓鱼中？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			TracePrint "函数gathering()：工作中..."
+			count = 0
+			
+			If Config.US And (LAST_SKILL_TIME = 0 Or (Time() - LAST_SKILL_TIME >= 1 * 60)) Then 
+				skill()
+			End If
+			
+			If Config.UT And (LAST_TOOL_TIME = 0 Or (Time() - LAST_TOOL_TIME >= 1.5 * 60)) Then 
+				tool()
+			End If
+			
+			ret = 1
+		Else 
+			TracePrint "函数gathering()：未在工作..."
+		End If
+		
+		If Config.IGNORE = False Then 
+			If EQUIPMENT_CONDITION["nc"] And (EQUIPMENT_CONDITION["foc"] < 90 * 60) And (EQUIPMENT_CONDITION["lrt"] = 0 Or (Time() - EQUIPMENT_CONDITION["lrt"] >= 30 * 60)) Then 
+				If equipment("gather", EQUIPMENT_CONDITION) Then 
+					TracePrint "函数gathering()：更换装备完毕"
+					Exit While
+				End If
+			End If
+		End If
+		
+		If count >= 4 Then 
+			TracePrint "函数gathering()：采集点已枯竭"
+			Exit While
+		End If
+	Wend
+	
+	gathering = ret
+End Function
+
+/**
+ * 使用采集工具
+ * 
+ * @return [void] null
+ */
+Function tool()
+	Dim intX, intY
+	
+	FindStr 365, 1031, 409, 1155, "快捷使用", "000021-303030", 0.9, intX, intY
+	TracePrint "函数tool()：快捷使用？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then 
+		CommonService.clickScreen(Array(365, 1031, 409, 1155))
+		TracePrint "函数tool()：点击快捷使用按钮"
+		
+		Delay CommonService.getPauseTime() - 400
+		
+		CommonService.clickScreen(Array(137, 1096, 219, 1262))
+		TracePrint "函数tool()：点击空白处"
+		
+		Delay CommonService.getPauseTime() - 400
+	End If
+	
+	FindStr 368, 1052, 408, 1131, "装备", "000021-303030", 0.9, intX, intY
+	TracePrint "函数tool()：装备？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then 
+		CommonService.clickScreen(Array(368, 1052, 408, 1131))
+		TracePrint "函数tool()：点击装备按钮"
+	End If
+	
+	LAST_TOOL_TIME = Time()
+End Function
+
+/**
+ * 使用采集技能
+ * 
+ * @return [void] null
+ */
+Function skill()
+	Dim intX, intY
+	
+	If CommonService.operation() > -1 Then 
+		FindStr 207, 1449, 232, 1500, "更换1", "FFFFFF-505050", 0.9, intX, intY
+		TracePrint "函数skill()：更换1？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			FindStr 132, 1267, 202, 1308, "!", "9C9A9C-303030", 0.9, intX, intY
+			TracePrint "函数skill()：!？" & intX & "，" & intY
+			If intX <= -1 Or intY <= -1 Then 
+				CommonService.clickScreen(Array(132, 1267, 202, 1308))
+				TracePrint "函数skill()：点击采集技能1按钮"
+				
+				Delay 800
+				
+				CommonService.clickScreen(Array(275, 1347, 335, 1393))
+				TracePrint "函数skill()：点击采集技能2按钮"
+				
+				LAST_SKILL_TIME = Time()
+			End If
+		End If
+	End If 
+End Function
+
+/**
+ * 更换采集装备
+ * 
+ * @param  [String]  craft      手艺类型：工匠、炼金师、料理师
+ * @param  [Object]  condition  更换采集装备相关对象
+ * @return [boolean] true       更换采集装备成功
+ *                   false      更换采集装备失败
+ */
+Function equipment(action, condition)
+	Dim intX, intY, count = 0, index = 0, length = 0, limit = 0, max = Config.SN + Config.WN
+	
+	If IsNull(action) Or action = "" Then 
+		equipment = False
+		Exit Function
+	End If
+	
+	If max > 25 Then 
+		max = 25
+	End If
+	
+	Delay 1000
+	FindStr 240, 909, 285, 995, "更换", "213021-303030", 0.9, intX, intY
+	TracePrint "函数equipment()：更换？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then 
+		condition["foc"] = 0
+		
+		If Config.UE Then 
+			CommonService.clickScreen(Array(240, 909, 285, 995))
+			TracePrint "函数equipment()：点击更换按钮"
+			
+			Delay 1500
+			
+			Select Case action
+			Case "produce"
+				index = 0
+				length = Config.SN - 1
+				limit = Config.SN
+			Case "gather"
+				index = Config.SN
+				length = max - 1
+				limit = Config.WN
+			End Select
+			
+			For i = index To length
+				Dim arr = Split(CStr(i / 5), ".")
+				
+				If UBOUND(arr) = 0 Then 
+					arr(UBOUND(arr) + 1) = "0"
+				End If
+				
+				Dim row = CInt(arr(0))
+				Dim col = CInt(arr(1)) / 2
+				
+				FindStr BASE_EQUIPMENT(0) - DISTANCE_X * row, BASE_EQUIPMENT(1) + DISTANCE_Y * col, BASE_EQUIPMENT(2) - DISTANCE_X * row, BASE_EQUIPMENT(3) + DISTANCE_Y * col, "损坏", "BDDBFF-505050", 0.9, intX, intY
+				TracePrint "函数equipment()：损坏？" & intX & "，" & intY
+				If intX > -1 And intY > -1 Then 
+					count = count + 1
+				Else
+					CommonService.clickScreen(Array(BASE_EQUIPMENT(0) - DISTANCE_X * row, BASE_EQUIPMENT(1) + DISTANCE_Y * col, BASE_EQUIPMENT(2) - DISTANCE_X * row, BASE_EQUIPMENT(3) + DISTANCE_Y * col))
+					TracePrint "函数equipment()：点击目标装备图标"
+					
+					Delay 1000
+					FindStr 637, 661, 788, 741, "替换", "213021-505050", 0.9, intX, intY
+					TracePrint "函数equipment()：替换？" & intX & "，" & intY
+					If intX > -1 And intY > -1 Then
+						CommonService.clickScreen(Array(intX, intY, intX + 30, intY + 70))
+						TracePrint "函数equipment()：点击替换按钮"
+						
+						condition["lrt"] = Time()
+						
+						Delay 800
+						CommonService.back()
+						
+						equipment = True
+						Exit Function
+					End If
+				End If
+			Next
+			
+			If count >= limit Then 
+				condition["nc"] = False
+			End If
+		Else 
+			CommonService.clickScreen(Array(342, 512, 373, 543))
+			TracePrint "函数equipment()：点击今日不再提示按钮"
+			
+			Delay 500
+			
+			CommonService.clickScreen(Array(240, 618, 285, 709))
+			TracePrint "函数equipment()：点击忽略按钮"
+			
+			condition["nc"] = False
+		End If
+	Else 
+		condition["foc"] = condition["foc"] + 1
+	End If
+	
+	equipment = False
+End Function

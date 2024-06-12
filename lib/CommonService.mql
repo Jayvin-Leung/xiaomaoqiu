@@ -1,0 +1,331 @@
+Import "Config.mql"
+Import "CommonUtils.mql"
+
+Dim BTN_LOCK = Array(422, 658, 486, 717) // 解锁按钮
+Dim BTN_WHEEL = Array(54, 106, 348, 398) // 方向盘按钮
+Dim BTN_MEMU = Array(596, 1508, 646, 1562) // 菜单页|操作页切换按钮
+Dim BTN_CRAFT = Array(453, 1302, 506, 1378) // 手艺按钮
+Dim BTN_STOCK = Array(342, 1455, 429, 1535) // 手艺-库存按钮
+Dim BTN_STOCK_CRAFT = Array(677, 233, 729, 334) // 手艺-库存-手艺按钮
+Dim BTN_STOCK_TAILOR = Array(678, 836, 724, 967) // 手艺-库存-裁缝按钮
+Dim BTN_ASSISTANT = Array(511, 18, 566, 143) // 手艺-库存-采集助手按钮
+Dim BTN_INTERACTION = Array(435, 892, 522, 1063) // 交互按钮
+Dim BTN_MAX = Array(103, 1107, 145, 1146) // 最大数量按钮
+Dim BTN_PRODUCE = Array(100, 1182, 144, 1334) // 制作按钮
+Dim BTN_GRANGE = Array(355, 1304, 403, 1377) // 家园按钮
+Dim BTN_GRANGE_HARVEST = Array(23, 713, 72, 886) // 一键收取按钮
+
+Function getPauseTime()
+	getPauseTime = CommonUtils.getRandomTime(1200, 1500)
+End Function
+
+Function clickScreen(area)
+	Dim point = CommonUtils.getRandomPoint(area)
+	
+	If point = -1 Then 
+		TracePrint "函数clickScreen()：获取触摸点失败，area:" & area
+		clickScreen = -1
+		Exit Function
+	End If
+	
+	Tap point(0), point(1)
+	
+	clickScreen = 0
+End Function
+
+Function swipeScreen(area1, area2, time, release)
+	Dim point1 = CommonUtils.getRandomPoint(area1)
+	Dim point2 = CommonUtils.getRandomPoint(area2)
+	
+	If point1 = -1 Or point2 = -1 Then 
+		TracePrint "函数swipScreen()：获取触摸点失败，area1:" & area1 & "，area2:" & area2
+		swipeScreen = -1
+		Exit Function
+	End If
+	
+	TouchDown point1(0), point1(1), 1
+	TouchMove point2(0), point2(1), 1, time
+	If release > 0 Then 
+		Delay release
+	End If
+	TouchUp 1
+	
+	swipeScreen = 0
+End Function
+
+Function home()
+	KeyPress "Home"
+	TracePrint "函数home()：Home键"
+	Delay getPauseTime()
+End Function
+
+Function back()
+	KeyPress "Back"
+	TracePrint "函数back()：返回键"
+	Delay getPauseTime()
+End Function
+
+Function unlock()
+	Dim intX, intY
+	
+	Delay 500
+	FindStr 433, 747, 465, 903, "滑动解锁", "EFF7F7", 0.9, intX, intY
+	TracePrint "函数unlock()：滑动解锁？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then 
+		swipeScreen(BTN_LOCK, Array(411, 955, 486, 1007), 500, 800)
+		TracePrint "函数unlock()：滑动解锁按钮"
+		Delay getPauseTime()
+		
+		Delay 500
+		FindStr 433, 747, 465, 903, "滑动解锁", "EFF7F7", 0.9, intX, intY
+		TracePrint "函数unlock()：滑动解锁？" & intX & "，" & intY
+		If intX > -1 And intY > -1 Then 
+			TracePrint "函数unlock()：滑动解锁失败"
+		Else 
+			TracePrint "函数unlock()：滑动解锁成功"
+		End If
+	Else
+		TracePrint "函数unlock()：不需要解锁"
+	End If
+End Function
+
+Function move()
+	swipeScreen(BTN_WHEEL, BTN_WHEEL, getPauseTime(), 100)
+	swipeScreen(BTN_WHEEL, BTN_WHEEL, getPauseTime(), 100)
+	TracePrint "函数move()：滑动方向盘按钮"
+	Delay getPauseTime()
+End Function
+
+Dim count = 0
+
+Function main()
+	Dim intX, intY, str
+	
+	str = Ocr(BTN_MEMU(0), BTN_MEMU(1), BTN_MEMU(2), BTN_MEMU(3), "DEEFF7-505050", 0.9)
+	If str = "操作" Or str = "菜单" Then 
+		TracePrint "函数main()：主界面"
+		count = 0
+		Exit Function
+	End If
+	
+	back()
+	
+	Delay 500
+	FindStr 342, 663, 366, 756, "结束游戏", "FA723A-505050", 0.9, intX, intY
+	TracePrint "函数main()：结束游戏？" & intX & "，" & intY
+	If intX > -1 And intY > -1 Then 
+		count = count + 1
+		back()
+		If count >= 10 Then 
+			count = 0
+			move() // 所在位置对区域找字的准确度有影响，移动一下人物以消除影响
+		End If
+	End If
+	
+	main()
+End Function
+
+Function forceMenu()
+	main()
+	menu()
+End Function
+
+Function menu()
+	menu = forceToggle("菜单")
+	TracePrint "函数menu()：切换到菜单页"
+End Function
+
+Function forceOperation()
+	main()
+	operation()
+End Function
+
+Function operation()
+	operation = forceToggle("操作")
+	TracePrint "函数operation()：切换到操作页"
+End Function
+
+Function forceToggle(page)
+	Dim str
+	
+	str = Ocr(BTN_MEMU(0), BTN_MEMU(1), BTN_MEMU(2), BTN_MEMU(3), "DEEFF7-505050", 0.9)
+	If IsNull(str) Or str = "" Then 
+		forceToggle = -1
+		Exit Function
+	End If
+	
+	If str = page Then 
+		forceToggle = 0
+		Exit Function
+	End If
+	
+	toggle()
+	
+	forceToggle = 1
+End Function
+
+Function toggle()
+	clickScreen(BTN_MEMU)
+	TracePrint "函数toggle()：点击切换菜单页/操作页按钮"
+	Delay getPauseTime()
+End Function
+
+Function forceCraft()
+	forceMenu()
+	craft()
+End Function
+
+Function craft()
+	clickScreen(BTN_CRAFT)
+	TracePrint "函数craft()：点击手艺按钮"
+	Delay getPauseTime()
+End Function
+
+Function forceStock()
+	forceCraft()
+	stock()
+End Function
+
+Function stock()
+	clickScreen(BTN_STOCK)
+	TracePrint "函数stock()：点击库存按钮"
+	Delay getPauseTime()
+End Function
+
+Function stockRowUp()
+	swipeScreen(Array(608, 740, 615, 782), Array(467, 737, 474, 783), 500, 800)
+	TracePrint "函数stockRowUp()：库存向上翻行"
+	Delay getPauseTime()
+End Function
+
+Function stockRowDn()
+	Dim intX, intY
+	
+	Delay 500
+	FindPic 162, 743, 190, 783, Config.PIC_PATH & "向下.png", "000000", 0, 0.9, intX, intY
+	If intX > -1 And intY > -1 Then
+		swipeScreen(Array(467, 737, 474, 783), Array(608, 740, 615, 782), 500, 800)
+		TracePrint "函数stockRowDn()：库存向下翻行"
+		Delay getPauseTime()
+		stockRowDn = 1
+	Else 
+		TracePrint "函数stockRowDn()：已到最底"
+		stockRowDn = 0
+	End If
+End Function
+
+Function stockPageUp()
+	swipeScreen(Array(603, 745, 607, 777), Array(197, 749, 201, 775), 500, 800)
+	TracePrint "函数stockPageUp()：库存向上翻页"
+	Delay getPauseTime()
+End Function
+
+Function stockPageDn()
+	Dim intX, intY
+	
+	Delay 500
+	FindPic 162, 743, 190, 783, Config.PIC_PATH & "向下.png", "000000", 0, 0.9, intX, intY
+	If intX > -1 And intY > -1 Then
+		swipeScreen(Array(197, 749, 201, 775), Array(603, 745, 607, 777), 500, 800)
+		TracePrint "函数stockPageDn()：库存向下翻页"
+		Delay getPauseTime()
+		stockPageDn = 1
+	Else 
+		TracePrint "函数stockPageDn()：已到最底"
+		stockPageDn = 0
+	End If
+End Function
+
+Function forceAssistant()
+	forceStock()
+	assistant()
+End Function
+
+Function assistant()
+	clickScreen(BTN_ASSISTANT)
+	TracePrint "函数assistant()：点击库存-采集助手按钮"
+	Delay getPauseTime()
+End Function
+
+Function assistantRowUp()
+	swipeScreen(Array(386, 505, 392, 533), Array(251, 505, 259, 534), 500, 800)
+	TracePrint "函数assistantRowUp()：采集助手向上翻行"
+	Delay getPauseTime()
+End Function
+
+Function assistantRowDn()
+	swipeScreen(Array(251, 505, 259, 534), Array(386, 505, 392, 533), 500, 800)
+	TracePrint "函数assistantRowDn()：采集助手向下翻行"
+	Delay getPauseTime()
+End Function
+
+Function assistantPageUp()
+	swipeScreen(Array(386, 505, 392, 533), Array(120, 506, 127, 533), 500, 800)
+	TracePrint "函数assistantPageUp()：采集助手向上翻页"
+	Delay getPauseTime()
+End Function
+
+Function assistantPageDn()
+	swipeScreen(Array(120, 506, 127, 533), Array(386, 505, 392, 533), 500, 800)
+	TracePrint "函数assistantPageDn()：采集助手向下翻页"
+	Delay getPauseTime()
+End Function
+
+Function stock_craft()
+	clickScreen(BTN_STOCK_CRAFT)
+	TracePrint "函数stock_craft()：点击库存-手艺按钮"
+	Delay getPauseTime()
+End Function
+
+Function craftRowUp()
+	swipeScreen(Array(479, 617, 489, 633), Array(362, 615, 375, 628), 500, 800)
+	TracePrint "函数craftRowUp()：手艺向上翻行"
+	Delay getPauseTime()
+End Function
+
+Function craftRowDn()
+	swipeScreen(Array(362, 615, 375, 628), Array(479, 617, 489, 633), 500, 800)
+	TracePrint "函数craftRowDn()：手艺助手向下翻行"
+	Delay getPauseTime()
+End Function
+
+Function stock_tailor()
+	clickScreen(BTN_STOCK_TAILOR)
+	TracePrint "函数stock_tailor()：点击库存-裁缝按钮"
+	Delay getPauseTime()
+End Function
+
+Function interaction()
+	clickScreen(BTN_INTERACTION)
+	TracePrint "函数interaction()：点击交互按钮"
+	Delay getPauseTime()
+End Function
+
+Function max()
+	clickScreen(BTN_MAX)
+	TracePrint "函数max()：点击最大数量按钮"
+	Delay getPauseTime()
+End Function
+
+Function produce()
+	clickScreen(BTN_PRODUCE)
+	TracePrint "函数produce()：点击制作按钮"
+	Delay getPauseTime()
+End Function
+
+Function forceGrange()
+	forceMenu()
+	grange()
+End Function
+
+Function grange()
+	clickScreen(BTN_GRANGE)
+	TracePrint "函数grange()：点击家园按钮"
+	Delay getPauseTime()
+End Function
+
+Function harvest()
+	clickScreen(BTN_GRANGE_HARVEST)
+	TracePrint "函数harvest()：点击一键收取按钮"
+	Delay getPauseTime()
+End Function

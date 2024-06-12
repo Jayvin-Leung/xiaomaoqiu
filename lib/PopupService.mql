@@ -1,0 +1,97 @@
+/**
+ * 弹窗操作类
+ * 
+ * 自定义各种情况下的弹窗样式
+ */
+
+/**
+ * 提示弹窗
+ * 
+ * @param  [String] layout  布局名
+ * @param  [String] msg     所要展示的提示信息
+ * @param  [int]    l       左内边距
+ * @param  [int]    t       上内边距
+ * @param  [int]    r       右内边距
+ * @param  [int]    b       下内边距
+ * @return [viod]   null
+ */
+Function info(layout, msg, l, t, r, b)
+	UI.NewLayout(layout, 1, 600)
+	UI.SetTextSize(layout, 18)
+	UI.AddTextView(layout, "msg", msg)
+	UI.SetTextSize("msg", 14)
+	UI.SetPadding("msg", l, t, r, b)
+	UI.Show(layout)
+End Function
+
+/**
+ * 采集材料弹窗
+ * 
+ * @param  [String] layout  布局名
+ * @param  [Array]  data    所要展示的材料数组
+ * @return [viod]   null
+ */
+Function gather(layout, data)
+	UI.NewLayout(layout, 1, 600)
+	UI.SetTextSize(layout, 18)
+	UI.AddButton(layout, "load", "读取配置", 275, 50)
+	UI.SetBackColor("load", "#1E90FF")
+	UI.SetOnClick("load", UI.LoadProfile())
+	UI.AddButton(layout, "save", "保存配置", 275, 50)
+	UI.SetBackColor("save", "1AAD19")
+	UI.SetOnClick("save", UI.SaveProfile())
+	UI.NewRow(layout, "")
+	UI.AddLine(layout, "")
+	UI.NewRow(layout, "")
+	
+	For i = 0 to UBound(data)
+		Dim o = data(i)
+		UI.AddTextView(layout, "title" & i, o["title"])
+		UI.SetTextSize("title" & i, 20)
+		UI.NewRow(layout, "")
+		For Each p In o["list"]
+			UI.AddCheckBox(layout, p["id"], p["text"])
+			UI.NewRow(layout, "")
+		Next
+	Next
+	
+	UI.LoadProfile()
+	
+	UI.Show(layout)
+End Function
+
+/**
+ * 手艺制作弹窗
+ * 
+ * @param  [String] layout  布局名
+ * @return [viod]   null
+ */
+Function craft(layout)
+	UI.NewLayout(layout, 1, 600)
+	UI.SetTextSize(layout, 18)
+	UI.AddButton(layout, "load", "读取配置", 275, 50)
+	UI.SetBackColor("load", "#1E90FF")
+	UI.SetOnClick("load", UI.LoadProfile())
+	UI.AddButton(layout, "save", "保存配置", 275, 50)
+	UI.SetBackColor("save", "1AAD19")
+	UI.SetOnClick("save", UI.SaveProfile())
+	UI.NewRow(layout, "")
+	UI.AddLine(layout, "")
+	UI.NewRow(layout, "")
+	
+	UI.AddTextView(layout, "", "循环制造“最近制作”中前")
+	UI.AddSpinner(layout, "num", {"1", "2", "3", "4"})
+	UI.AddTextView(layout, "", "种产物")
+	UI.NewRow(layout, "")
+	UI.AddTextView(layout, "", "（请事先将需要制造的产物安排在“最近制作”的前列）")
+	UI.NewRow(layout, "")
+	UI.AddTextView(layout, "", "执行时间：")
+	UI.AddSpinner(layout, "time", {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"})
+	UI.AddTextView(layout, "", "小时")
+	UI.NewRow(layout, "")
+	UI.AddTextView(layout, "", "（0代表不限时间，直至手动停止）")
+	
+	UI.LoadProfile()
+	
+	UI.Show(layout)
+End Function

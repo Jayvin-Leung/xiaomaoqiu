@@ -1,0 +1,200 @@
+Import "Cjson.lua"
+
+Function filter(arr, field, operator, limit)
+	Dim list()
+	
+	For Each o In arr
+		Select Case operator
+		Case "="
+			If o[field] = limit Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case "<>"
+			If o[field] <> limit Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case ">"
+			If o[field] > limit Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case "<"
+			If o[field] < limit Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case ">="
+			If o[field] >= limit Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case "<="
+			If o[field] <= limit Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case "eq"
+			If StrComp(o[field], limit) = 0 Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case "not eq"
+			If StrComp(o[field], limit) <> 0 Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case "contain"
+			If InStr(1, o[field], limit) > 0 Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case "not contain"
+			If InStr(1, o[field], limit) = 0 Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case "in"
+			If exist(Split(limit, ","), CStr(o[field])) Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case "not in"
+			If exist(Split(limit, ","), CStr(o[field])) = False Then 
+				list(UBound(list) + 1) = o
+			End If
+		Case Else
+		End Select
+	Next
+	
+	filter = list
+End Function
+
+Function sort(arr, field, order)
+	If order <> "asc" And order <> "desc" Then 
+		order = "asc"
+	End If
+	
+	Dim c = copy(arr)
+	Dim l = UBound(c), o1, o2, t
+	
+	Select Case order
+	Case "asc"
+		For i = 0 To l - 1
+			For j = 0 To l - 1 - i
+				o1 = c(j)
+				o2 = c(j + 1)
+				
+				If o1[field] > o2[field] Then
+					t = c(j)
+					c(j) = c(j + 1)
+					c(j + 1) = t
+				End If
+			Next
+		Next
+	Case "desc"
+		For i = 0 To l - 1
+			For j = 0 To l - 1 - i
+				o1 = c(j)
+				o2 = c(j + 1)
+				
+				If o1[field] < o2[field] Then
+					t = c(j)
+					c(j) = c(j + 1)
+					c(j + 1) = t
+				End If
+			Next
+		Next
+	Case Else
+		c = arr
+	End Select
+	
+	sort = c
+End Function
+
+Function block(arr, blockSize)
+	Dim list()
+	
+	If UBound(arr) + 1 <= 0 Then 
+		block = arr
+		Exit Function
+	End If
+	
+	Dim size = Int(UBound(arr) / blockSize) + 1
+	
+	For i = 0 To size - 1
+		Dim temp()
+		
+		For j = 0 To blockSize - 1
+			temp(j) = arr(blockSize * i + j)
+		Next
+		
+		list(i) = temp
+	Next
+	
+	block = list
+End Function
+
+Function group(arr, field)
+	Dim list()
+	
+	For Each o In arr
+		If UBound(list) + 1 = 0 Then 
+			list(0) = {field: o[field], "list": Array()}
+		Else 
+			Dim f = True
+			For Each p In list
+				If p[field] = o[field] Then 
+					f = False
+					Exit For
+				End If
+			Next
+			If f Then 
+				list(UBound(list) + 1) = {field: o[field], "list": Array()}
+			End If
+		End If
+	Next
+	
+	For Each o In arr
+		For Each p In list
+			If p[field] = o[field] Then 
+				Dim temp = p["list"]
+				temp(UBound(temp) + 1) = o
+			End If
+		Next
+	Next
+
+	group = list
+End Function
+
+Function contain(arr, field, val)
+	Dim ret = False
+	
+	For Each o In arr
+		If o[field] = val Then 
+			ret = True
+			Exit For
+		End If
+	Next
+	
+	contain = ret
+End Function
+
+Function exist(arr, val)
+	Dim ret = False
+	
+	For Each o In arr
+		If o = val Then 
+			ret = True
+			Exit For
+		End If
+	Next
+	
+	exist = ret
+End Function
+
+Function copy(arr)
+	copy = Cjson.Decode(Cjson.Encode(arr))
+End Function
+
+Function delete(arr, field, val)
+	Dim list()
+	
+	For Each o In arr
+		If o[field] <> val Then 
+			list(UBound(list) + 1) = o
+		End If
+	Next
+	
+	delete = list
+End Function

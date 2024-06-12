@@ -1,0 +1,132 @@
+Import "Config.mql"
+Import "CommonService.mql"
+Import "GatherService.mql"
+
+Dim cols()
+cols(0) = {"step1":Array(160, 238, 630, 341), "max":Array(160, 290, 630, 340), "step2":Array(30, 605, 790, 710), "step3":Array(220, 722, 800, 830)}
+cols(1) = {"step1":Array(160, 426, 630, 529), "max":Array(160, 477, 630, 527), "step2":Array(30, 793, 790, 899), "step3":Array(220, 912, 800, 1017)}
+cols(2) = {"step1":Array(160, 615, 630, 716), "max":Array(160, 666, 630, 716), "step2":Array(30, 981, 790, 1088), "step3":Array(220, 1100, 800, 1205)}
+cols(3) = {"step1":Array(160, 802, 630, 905), "max":Array(160, 854, 630, 904), "step2":Array(30, 1170, 790, 1276), "step3":Array(220, 1275, 800, 1380)}
+cols(4) = {"step1":Array(160, 992, 630, 1093), "max":Array(160, 1042, 630, 1092), "step2":Array(30, 687, 790, 792), "step3":Array(220, 805, 800, 910)}
+cols(5) = {"step1":Array(160, 1179, 630, 1282), "max":Array(160, 1231, 630, 1281), "step2":Array(30, 875, 790, 981), "step3":Array(220, 993, 800, 1098)}
+
+/**
+ * 主方法
+ * 
+ * 根据传入的任务清单，逐个采集材料，一种材料采集满后换下一种，直至任务清单中的材料全部采集完毕
+ * 
+ * @param  [Array] task  任务清单，需要采集的材料数组
+ * @return [void]  null
+ */
+Function execute(task)
+	Dim intX, intY, tempX, tempY, index, flag = True, last_obj
+	
+	For Each obj In task
+		Dim col = cols(obj["col"])
+		Dim step1 = col["step1"], max = col["max"], step2 = col["step2"], step3 = col["step3"]
+		Dim count = 0
+		
+		// 判断是否需要重新切换到“库存界面”，重新切换可让材料页面刷新，方便新一轮查找
+		If IsNull(last_obj) = False Then 
+			If obj["type"] < last_obj["type"] Then 
+				CommonService.stock_tailor()
+				CommonService.stock_craft()
+				flag = True
+			End If
+		End If
+		
+		last_obj = obj
+		
+		While True
+			count = count + 1
+			
+			Delay Config.SPEED
+			FindPic 668, 226, 731, 340, Config.PIC_PATH & "手艺.png", "000000", 0, 0.9, intX, intY
+			TracePrint "函数execute()：手艺？" & intX & "，" & intY & "，" & index
+			If intX <= -1 Or intY <= -1 Then
+				CommonService.main()
+				CommonService.move()
+				CommonService.menu()
+				CommonService.craft()
+				CommonService.stock()
+			End If
+			
+			// 判断是否为刚打开“库存界面”或重新切换到“库存界面”，是则根据本次所要采集的材料位置，先进行翻页操作，到了指定页面后再逐行下滑进行判断
+			If flag Then 
+				For ((obj["row"] + 3) \ 3) - 1
+					CommonService.stockPageDn()
+				Next
+				
+				flag = False
+			End If
+			
+			While True
+				Dim pic = Config.PIC_PATH & obj["state2"]
+				If IsNull(obj["state3"]) = False And obj["state3"] <> "" Then 
+					pic = pic & "|" & Config.PIC_PATH & obj["state3"]
+				End If
+				
+				Delay Config.SPEED
+				index = FindPic(step1(0), step1(1), step1(2), step1(3), pic, "505050", 0, 0.9, intX, intY)
+				TracePrint "函数execute()：" & obj["name"] & "？" & intX & "，" & intY & "，" & index
+				If intX > -1 And intY > -1 Then 
+					If intX - 170 < 30 Then 
+						Goto again
+					End If
+					
+					Delay Config.SPEED
+					index = FindStr(intX - 40, max(1), intX, max(3), CStr(obj["max"]) & "|" &  CStr(obj["max"]) & "_1", "52658C-505050", 0.9, tempX, tempY)
+					TracePrint "函数execute()：" & obj["max"] & "？" & tempX & "，" & tempY & "，" & index
+					If tempX > -1 And tempY > -1 Then 
+						obj["isFull"] = True
+						Goto skip
+					End If
+					
+					CommonService.clickScreen(Array(intX, intY, intX + 40, intY + 40))
+					TracePrint "函数execute()：点击目标材料图标"
+					
+					Delay Config.SPEED
+					FindStr step2(0), step2(1), step2(2), step2(3), "获取途径", "94B2CE-505050", 0.9, intX, intY
+					TracePrint "函数execute()：获取途径？" & intX & "，" & intY
+					If intX > -1 And intY > -1 Then 
+						CommonService.clickScreen(Array(intX + 5, intY + 10, intX + 20, intY + 100))
+						TracePrint "函数execute()：点击获取途径按钮"
+						
+						Delay Config.SPEED
+						FindStr step3(0), step3(1), step3(2), step3(3), "前往采集", "EFFBFF-505050", 0.9, intX, intY
+						TracePrint "函数execute()：前往采集？" & intX & "，" & intY
+						If intX > -1 And intY > -1 Then 
+							CommonService.clickScreen(Array(intX, intY + 230, intX + 30, intY + 280))
+							TracePrint "函数execute()：点击前往采集按钮"
+							
+							If GatherService.execute() > 0 Then 
+								count = 0
+							End If
+							
+							Exit While
+						End If
+					End If	
+				End If
+				
+				Rem again
+				
+				// 逐行下滑操作，如果下滑到底则退出循环，重新开始
+				If CommonService.stockRowDn() = 0 Then 
+					CommonService.stock_tailor()
+					
+					flag = True
+					
+					Exit While
+				End If
+			Wend
+			
+			// 如果3次循环都没开始采集动作，则跳过该材料采集
+			If count >= 3 Then 
+				obj["isSkip"] = True
+				Exit While
+			End If
+		Wend
+		
+		Rem skip
+	Next
+End Function
