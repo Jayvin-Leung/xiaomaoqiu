@@ -56,9 +56,10 @@
 6、家园作物，一键种植数量调至60，参考下图2、3
 
 7、创建队伍，保持1人即可
-![图1](https://github.com/Jayvin-Leung/xiaomaoqiu/icon/图1.png)
-![图2](https://github.com/Jayvin-Leung/xiaomaoqiu/assets/118683529/8fc4c121-de09-4ff7-9e77-402f7719d791)
-![图3](https://github.com/Jayvin-Leung/xiaomaoqiu/assets/118683529/6a367b95-8531-4b21-b790-dc4ad6c4bdbe)
+
+![图1](https://github.com/Jayvin-Leung/xiaomaoqiu/assets/118683529/af080c06-5ff2-4990-994e-677ca1639f86)
+![图2](https://github.com/Jayvin-Leung/xiaomaoqiu/assets/118683529/307bab09-7bef-4914-ab88-059a4af91401)
+![图3](https://github.com/Jayvin-Leung/xiaomaoqiu/assets/118683529/1706aebb-828a-4df4-bd8f-7a1a65364f1a)
 
 
 五、脚本设置
@@ -108,4 +109,4 @@ a、根据“pic”目录下原有的图片，按照原有图片的方式进行�
     
 b、将新的制作好的图片放入“pic”目录下即可
 
-(3)、因受字数限制，详细的操作方法请移步查看：（需科学上网）
+(3)、因受字数限制，详细的操作方法请移步查看：https://github.com/Jayvin-Leung/xiaomaoqiu（需科学上网）
