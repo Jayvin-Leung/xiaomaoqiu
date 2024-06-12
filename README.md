@@ -1,4 +1,4 @@
-# 小毛球
+# 小毛球——森之国度生活助手
 
 【一、免责声明】
 
@@ -56,7 +56,7 @@
 6、家园作物，一键种植数量调至60，参考下图2、3
 
 7、创建队伍，保持1人即可
-![图1](https://github.com/Jayvin-Leung/xiaomaoqiu/assets/118683529/324bbc4a-cd0b-42eb-8891-d59522c89af6)
+![图1](https://github.com/Jayvin-Leung/xiaomaoqiu/icon/pic/图1.png)
 ![图2](https://github.com/Jayvin-Leung/xiaomaoqiu/assets/118683529/8fc4c121-de09-4ff7-9e77-402f7719d791)
 ![图3](https://github.com/Jayvin-Leung/xiaomaoqiu/assets/118683529/6a367b95-8531-4b21-b790-dc4ad6c4bdbe)
 
